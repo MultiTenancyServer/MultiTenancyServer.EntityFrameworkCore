@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27703.2000
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MultiTenancyServer.EntityFramework", "src\MultiTenancyServer.EntityFrameworkCore\MultiTenancyServer.EntityFramework.csproj", "{07D9E292-3CEC-4BB7-8D43-26B0C47DB54B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MultiTenancyServer.EntityFrameworkCore", "src\MultiTenancyServer.EntityFrameworkCore\MultiTenancyServer.EntityFrameworkCore.csproj", "{07D9E292-3CEC-4BB7-8D43-26B0C47DB54B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
