@@ -23,7 +23,7 @@ namespace Microsoft.Extensions.DependencyInjection
         /// <typeparam name="TContext">The Entity Framework database context to use.</typeparam>
         /// <param name="builder">The <see cref="TenancyBuilder"/> instance this method extends.</param>
         /// <returns>The <see cref="TenancyBuilder"/> instance this method extends.</returns>
-        public static TenancyBuilder<TTenant, TKey> AddEntityFrameworkStores<TContext, TTenant, TKey>(this TenancyBuilder<TTenant, TKey> builder)
+        public static TenancyBuilder<TTenant, TKey> AddEntityFrameworkStore<TContext, TTenant, TKey>(this TenancyBuilder<TTenant, TKey> builder)
             where TContext : DbContext, ITenantDbContext<TTenant, TKey>
             where TTenant : TenancyTenant<TKey>
             where TKey : IEquatable<TKey>
