@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <Version>0.7.0</Version>
+    <Version>0.7.1</Version>
     <Authors>Kris Penner</Authors>
     <Product>MultiTenancyServer</Product>
     <Description>MultiTenancyServer Entity Framework Core library.</Description>
@@ -19,7 +19,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="2.0.0" />
-    <PackageReference Include="MultiTenancyServer.Stores" Version="0.7.0" />
+    <PackageReference Include="MultiTenancyServer.Stores" Version="0.7.1" />
   </ItemGroup>
 
 </Project>
