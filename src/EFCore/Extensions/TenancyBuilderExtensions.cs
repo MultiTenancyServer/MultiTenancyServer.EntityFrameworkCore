@@ -5,6 +5,7 @@ using System;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using MultiTenancyServer;
 using MultiTenancyServer.Configuration.DependencyInjection;
 using MultiTenancyServer.EntityFramework;
@@ -23,12 +24,25 @@ namespace Microsoft.Extensions.DependencyInjection
         /// <typeparam name="TContext">The Entity Framework database context to use.</typeparam>
         /// <param name="builder">The <see cref="TenancyBuilder"/> instance this method extends.</param>
         /// <returns>The <see cref="TenancyBuilder"/> instance this method extends.</returns>
-        public static TenancyBuilder<TTenant, TKey> AddEntityFrameworkStore<TContext, TTenant, TKey>(this TenancyBuilder<TTenant, TKey> builder)
+        public static TenancyBuilder<TTenant, TKey> AddEntityFrameworkStore<TContext, TTenant, TKey>(
+            this TenancyBuilder<TTenant, TKey> builder, 
+            Func<IServiceProvider, TContext> contextFactory = null)
             where TContext : DbContext, ITenantDbContext<TTenant, TKey>
             where TTenant : TenancyTenant<TKey>
             where TKey : IEquatable<TKey>
         {
-            builder.Services.TryAddScoped<ITenantStore<TTenant>, TenantStore<TTenant, TContext, TKey>>();
+            if (contextFactory != null)
+            {
+                builder.Services.TryAddScoped<ITenantStore<TTenant>>(sp =>
+                    new TenantStore<TTenant, TContext, TKey>(
+                        contextFactory(sp),
+                        sp.GetRequiredService<ILogger<TenantStore<TTenant, TContext, TKey>>>(),
+                        sp.GetService<TenancyErrorDescriber>()));
+            }
+            else
+            {
+                builder.Services.TryAddScoped<ITenantStore<TTenant>, TenantStore<TTenant, TContext, TKey>>();
+            }
             return builder;
         }
 
