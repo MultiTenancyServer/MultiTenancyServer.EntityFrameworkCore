@@ -47,15 +47,14 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="tenantId">Expression to read the currently scoped tenant ID.</param>
         /// <param name="staticTenancyModelState">The same state object that was passed out of <see cref="ModelBuilder"/>.HasTenancy().</param>
         /// <param name="propertyExpression">Expression to access the property on the entity that references the ID of the owning tenant.</param>
-        /// <param name="maxLength">Max length used for any keys, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
         /// <param name="hasIndex">True if the tenant ID reference column should be indexed in the database, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
         /// <param name="indexNameFormat">Format or name of the index, only applicable if <paramref name="hasIndex"/> is true, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
+        /// <param name="nullTenantReferenceHandling">Determines if a null tenant reference is allowed and how querying for null tenant references is handled.</param>
         public static void HasTenancy<TEntity, TKey>(
             this EntityTypeBuilder<TEntity> builder,
             Expression<Func<TKey>> tenantId,
             object staticTenancyModelState,
             Expression<Func<TEntity, TKey>> propertyExpression,
-            int? maxLength = null,
             bool? hasIndex = null,
             string indexNameFormat = null,
             NullTenantReferenceHandling? nullTenantReferenceHandling = null)
@@ -66,7 +65,7 @@ namespace Microsoft.EntityFrameworkCore
             ArgCheck.NotNull(nameof(staticTenancyModelState), staticTenancyModelState);
             ArgCheck.NotNull(nameof(propertyExpression), propertyExpression);
             var propertyName = builder.Property(propertyExpression).Metadata.Name;
-            builder.HasTenancy(tenantId, staticTenancyModelState, propertyName, maxLength, hasIndex, indexNameFormat);
+            builder.HasTenancy(tenantId, staticTenancyModelState, propertyName, hasIndex, indexNameFormat, nullTenantReferenceHandling);
         }
 
         /// <summary>
@@ -78,15 +77,14 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="tenantId">Expression to read the currently scoped tenant ID.</param>
         /// <param name="staticTenancyModelState">The same state object that was passed out of <see cref="ModelBuilder"/>.HasTenancy().</param>
         /// <param name="propertyName">Name of the property on the entity that references the ID of the owning tenant, if it does not exist a shadow property will be added to the entity's model.</param>
-        /// <param name="maxLength">Max length used for any keys, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
         /// <param name="hasIndex">True if the tenant ID reference column should be indexed in the database, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
         /// <param name="indexNameFormat">Format or name of the index, only applicable if <paramref name="hasIndex"/> is true, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
+        /// <param name="nullTenantReferenceHandling">Determines if a null tenant reference is allowed and how querying for null tenant references is handled.</param>
         public static void HasTenancy<TEntity, TKey>(
             this EntityTypeBuilder<TEntity> builder,
             Expression<Func<TKey>> tenantId,
             object staticTenancyModelState,
             string propertyName = null,
-            int? maxLength = null,
             bool? hasIndex = null,
             string indexNameFormat = null,
             NullTenantReferenceHandling? nullTenantReferenceHandling = null)
@@ -100,24 +98,25 @@ namespace Microsoft.EntityFrameworkCore
 
             // get overrides or defaults
             propertyName = propertyName ?? modelState.DefaultOptions.ReferenceName ?? throw new ArgumentNullException(nameof(propertyName));
-            maxLength = maxLength ?? modelState.DefaultOptions.MaxLengthForKeys;
             hasIndex = hasIndex ?? modelState.DefaultOptions.IndexReferences;
             indexNameFormat = indexNameFormat ?? modelState.DefaultOptions.IndexNameFormat;
             nullTenantReferenceHandling = nullTenantReferenceHandling ?? modelState.DefaultOptions.NullTenantReferenceHandling;
             modelState.Properties[typeof(TEntity)] = new TenantReferenceOptions()
             {
                 ReferenceName = propertyName,
-                MaxLengthForKeys = maxLength.Value,
                 IndexReferences = hasIndex.Value,
                 IndexNameFormat = indexNameFormat,
                 NullTenantReferenceHandling = nullTenantReferenceHandling.Value,
             };
 
             // add property
-            var property = builder.Property(modelState.TenantKeyType, propertyName).IsRequired();
-            if (property.Metadata.ClrType == typeof(string) && maxLength.HasValue)
+            var property = builder.Property(modelState.TenantKeyType, propertyName);
+
+            // is required / not null
+            if (nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullDenyAccess ||
+                nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullGlobalAccess)
             {
-                property.HasMaxLength(maxLength.Value);
+                property.IsRequired();
             }
 
             // add index
@@ -145,11 +144,6 @@ namespace Microsoft.EntityFrameworkCore
             {
                 // _tenantId == null || EF.Property(e, "TenantId") == _tenantId
                 expression = Expression.OrElse(Expression.Equal(tenantId.Body, Expression.Constant(null)), expression);
-            }
-            else
-            {
-                // For NullTenantReferenceHandling.NullableEntityAccess.
-                // EF.Property(e, "TenantId") == _tenantId (which can be null)
             }
             var lambda = Expression.Lambda(expression, entityParameter);
             builder.HasQueryFilter(lambda);
