@@ -33,8 +33,8 @@ namespace Microsoft.EntityFrameworkCore
         {
             staticTenancyModelState = new TenancyModelState()
             {
-                PropertyType = typeof(TKey),
-                Options = options
+                TenantKeyType = typeof(TKey),
+                DefaultOptions = options
             };
         }
 
@@ -57,7 +57,8 @@ namespace Microsoft.EntityFrameworkCore
             Expression<Func<TEntity, TKey>> propertyExpression,
             int? maxLength = null,
             bool? hasIndex = null,
-            string indexNameFormat = null)
+            string indexNameFormat = null,
+            NullTenantReferenceHandling? nullTenantReferenceHandling = null)
             where TEntity : class
             where TKey : IEquatable<TKey>
         {
@@ -87,7 +88,8 @@ namespace Microsoft.EntityFrameworkCore
             string propertyName = null,
             int? maxLength = null,
             bool? hasIndex = null,
-            string indexNameFormat = null)
+            string indexNameFormat = null,
+            NullTenantReferenceHandling? nullTenantReferenceHandling = null)
             where TEntity : class
             where TKey : IEquatable<TKey>
         {
@@ -97,28 +99,59 @@ namespace Microsoft.EntityFrameworkCore
               throw new InvalidOperationException($"{nameof(HasTenancy)} must be called on the {nameof(ModelBuilder)} first.");
 
             // get overrides or defaults
-            propertyName = propertyName ?? modelState.Options.ReferenceName ?? throw new ArgumentNullException(nameof(propertyName));
-            maxLength = maxLength ?? modelState.Options.MaxLengthForKeys;
-            hasIndex = hasIndex ?? modelState.Options.IndexReferences;
-            indexNameFormat = indexNameFormat ?? modelState.Options.IndexNameFormat;
+            propertyName = propertyName ?? modelState.DefaultOptions.ReferenceName ?? throw new ArgumentNullException(nameof(propertyName));
+            maxLength = maxLength ?? modelState.DefaultOptions.MaxLengthForKeys;
+            hasIndex = hasIndex ?? modelState.DefaultOptions.IndexReferences;
+            indexNameFormat = indexNameFormat ?? modelState.DefaultOptions.IndexNameFormat;
+            nullTenantReferenceHandling = nullTenantReferenceHandling ?? modelState.DefaultOptions.NullTenantReferenceHandling;
+            modelState.Properties[typeof(TEntity)] = new TenantReferenceOptions()
+            {
+                ReferenceName = propertyName,
+                MaxLengthForKeys = maxLength.Value,
+                IndexReferences = hasIndex.Value,
+                IndexNameFormat = indexNameFormat,
+                NullTenantReferenceHandling = nullTenantReferenceHandling.Value,
+            };
 
-            var property = builder.Property(modelState.PropertyType, propertyName).IsRequired();
+            // add property
+            var property = builder.Property(modelState.TenantKeyType, propertyName).IsRequired();
             if (property.Metadata.ClrType == typeof(string) && maxLength.HasValue)
+            {
                 property.HasMaxLength(maxLength.Value);
+            }
+
+            // add index
             if (hasIndex.Value)
             {
                 var index = builder.HasIndex(propertyName);
                 if (!string.IsNullOrEmpty(indexNameFormat))
+                {
                     index.HasName(string.Format(indexNameFormat, propertyName));
+                }
             }
 
-            modelState.Properties[typeof(TEntity)] = propertyName;
+            // add tenant query filter
             var entityParameter = Expression.Parameter(typeof(TEntity), "e");  // eg. User e
             var propertyNameConstant = Expression.Constant(propertyName, typeof(string));  // eg. (string)"TenantId"
-            var efPropertyMethod = typeof(EF).GetMethod(nameof(EF.Property), BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(modelState.PropertyType);  // eg. EF.Property()
+            var efPropertyMethod = typeof(EF).GetMethod(nameof(EF.Property), BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(modelState.TenantKeyType);  // eg. EF.Property()
             var efPropertyMethodCall = Expression.Call(efPropertyMethod, entityParameter, propertyNameConstant);  // EF.Property(e, "TenantId")
-            var efTenantPropertyValueEqualsTenantId = Expression.Equal(efPropertyMethodCall, tenantId.Body);
-            var lambda = Expression.Lambda(efTenantPropertyValueEqualsTenantId, entityParameter);
+            var expression = Expression.Equal(efPropertyMethodCall, tenantId.Body);  // EF.Property(e, "TenantId") == _tenantId
+            if (nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullDenyAccess)
+            {
+                // _tenantId != null && EF.Property(e, "TenantId") == _tenantId
+                expression = Expression.AndAlso(Expression.NotEqual(tenantId.Body, Expression.Constant(null)), expression);
+            }
+            else if (nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullGlobalAccess)
+            {
+                // _tenantId == null || EF.Property(e, "TenantId") == _tenantId
+                expression = Expression.OrElse(Expression.Equal(tenantId.Body, Expression.Constant(null)), expression);
+            }
+            else
+            {
+                // For NullTenantReferenceHandling.NullableEntityAccess.
+                // EF.Property(e, "TenantId") == _tenantId (which can be null)
+            }
+            var lambda = Expression.Lambda(expression, entityParameter);
             builder.HasQueryFilter(lambda);
         }
 
@@ -140,36 +173,66 @@ namespace Microsoft.EntityFrameworkCore
 
             var tenancyProperties = modelState.Properties;
 
-            var hasTenancyLookup = new Dictionary<Type, string>();
+            var hasTenancyLookup = new Dictionary<Type, TenantReferenceOptions>();
             foreach (var entry in context.ChangeTracker.Entries())
             {
                 if (entry.State != EntityState.Added &&
                     entry.State != EntityState.Deleted &&
                     entry.State != EntityState.Modified)
-                    continue;
-                var type = entry.Entity.GetType();
-                if (!hasTenancyLookup.TryGetValue(type, out var hasTenancyPropertyName))
                 {
-                    tenancyProperties.TryGetValue(type, out hasTenancyPropertyName);
-                    hasTenancyLookup.Add(type, hasTenancyPropertyName);
-                }
-                if (hasTenancyPropertyName == null)
                     continue;
+                }
+
+                var type = entry.Entity.GetType();
+                if (!hasTenancyLookup.TryGetValue(type, out var hasTenancyOptions))
+                {
+                    tenancyProperties.TryGetValue(type, out hasTenancyOptions);
+                    hasTenancyLookup.Add(type, hasTenancyOptions);
+                }
+
+                if (hasTenancyOptions == null)
+                {
+                    continue;
+                }
+
                 if (tenantId == null)
-                    throw new InvalidOperationException("TenantId is null - possibly because no scoped tenancy was found.");
-                var accessedTenantId = (TKey)entry.Property(hasTenancyPropertyName).CurrentValue;
+                {
+                    if (hasTenancyOptions.NullTenantReferenceHandling == NullTenantReferenceHandling.NotNullDenyAccess)
+                    {
+                        throw new InvalidOperationException($"Tenancy context is null - possibly because no scoped tenancy was found.");
+                    }
+                    if (hasTenancyOptions.NullTenantReferenceHandling == NullTenantReferenceHandling.NotNullGlobalAccess)
+                    {
+                        var referencedTenantId = (TKey)entry.Property(hasTenancyOptions.ReferenceName).CurrentValue;
+                        if (referencedTenantId == null)
+                        {
+                            throw new InvalidOperationException(
+                                $"{hasTenancyOptions.ReferenceName} is null on entity of type {entry.Entity.GetType().Name} which does not allow null and the current tenant from the tenancy context is also null - possibly because no scoped tenancy was found.");
+                        }
+                        continue;
+                    }
+                }
+
+                // If tenantId is null here, that's because the entity already has a tenant ID set or
+                // the entity allows a null tenant reference (NullTenantReferenceHandling.NullableEntityAccess).
+
+                var accessedTenantId = (TKey)entry.Property(hasTenancyOptions.ReferenceName).CurrentValue;
                 if (accessedTenantId != null)
+                {
                     TenancyAccessHelper.CheckTenancyAccess(tenantId, accessedTenantId, logger);
+                }
                 else
-                    entry.Property(hasTenancyPropertyName).CurrentValue = tenantId;
+                {
+                    entry.Property(hasTenancyOptions.ReferenceName).CurrentValue = tenantId;
+                }
             }
         }
 
         private class TenancyModelState
         {
-            public Type PropertyType { get; set; }
-            public TenantReferenceOptions Options { get; set; }
-            public Dictionary<Type, string> Properties { get; } = new Dictionary<Type, string>();
+            public Type TenantKeyType { get; set; }
+            public TenantReferenceOptions DefaultOptions { get; set; }
+            public Dictionary<Type, TenantReferenceOptions> Properties { get; } = new Dictionary<Type, TenantReferenceOptions>();
         }
     }
 }

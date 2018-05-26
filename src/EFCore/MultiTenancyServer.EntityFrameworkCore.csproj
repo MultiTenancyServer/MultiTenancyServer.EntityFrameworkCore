@@ -2,13 +2,14 @@
 
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
-		<Version>0.8.0</Version>
+		<Version>0.8.1</Version>
 		<Description>MultiTenancyServer Entity Framework Core library.</Description>
 		<PackageTags>multitenancy multi-tenancy multitenant multi-tenant tenants tenant company client customer division partition entityframeworkcore entityframework core ef efcore</PackageTags>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="2.0.0" />
+		<PackageReference Include="MultiTenancyServer" Version="0.8.4" />
 		<PackageReference Include="MultiTenancyServer.Stores" Version="0.8.0" />
 	</ItemGroup>
 
