@@ -25,15 +25,18 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="builder">Builder describing the DbContext model.</param>
         /// <param name="options">Options describing how tenanted entities reference their owner tenant.</param>
         /// <param name="staticTenancyModelState">A static field on the DbContext that will store state about the multi-tenancy configuration for the context.</param>
+        /// <param name="unsetTenantKey">An optional value that represents an unset tenant ID on a tenanted entity, by default this will be null for reference types and 0 for integers.</param>
         public static void HasTenancy<TKey>(
             this ModelBuilder builder,
             TenantReferenceOptions options,
-            out object staticTenancyModelState)
+            out object staticTenancyModelState,
+            object unsetTenantKey = null)
             where TKey : IEquatable<TKey>
         {
             staticTenancyModelState = new TenancyModelState()
             {
                 TenantKeyType = typeof(TKey),
+                UnsetTenantKey = unsetTenantKey ?? (typeof(TKey).IsValueType ? Activator.CreateInstance(typeof(TKey)) : null),
                 DefaultOptions = options
             };
         }
@@ -50,16 +53,15 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="hasIndex">True if the tenant ID reference column should be indexed in the database, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
         /// <param name="indexNameFormat">Format or name of the index, only applicable if <paramref name="hasIndex"/> is true, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
         /// <param name="nullTenantReferenceHandling">Determines if a null tenant reference is allowed and how querying for null tenant references is handled.</param>
-        public static void HasTenancy<TEntity, TKey>(
+        public static void HasTenancy<TEntity>(
             this EntityTypeBuilder<TEntity> builder,
-            Expression<Func<TKey>> tenantId,
+            Expression<Func<object>> tenantId,
             object staticTenancyModelState,
-            Expression<Func<TEntity, TKey>> propertyExpression,
+            Expression<Func<TEntity, object>> propertyExpression,
             bool? hasIndex = null,
             string indexNameFormat = null,
             NullTenantReferenceHandling? nullTenantReferenceHandling = null)
             where TEntity : class
-            where TKey : IEquatable<TKey>
         {
             ArgCheck.NotNull(nameof(builder), builder);
             ArgCheck.NotNull(nameof(staticTenancyModelState), staticTenancyModelState);
@@ -80,16 +82,15 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="hasIndex">True if the tenant ID reference column should be indexed in the database, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
         /// <param name="indexNameFormat">Format or name of the index, only applicable if <paramref name="hasIndex"/> is true, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
         /// <param name="nullTenantReferenceHandling">Determines if a null tenant reference is allowed and how querying for null tenant references is handled.</param>
-        public static void HasTenancy<TEntity, TKey>(
+        public static void HasTenancy<TEntity>(
             this EntityTypeBuilder<TEntity> builder,
-            Expression<Func<TKey>> tenantId,
+            Expression<Func<object>> tenantId,
             object staticTenancyModelState,
             string propertyName = null,
             bool? hasIndex = null,
             string indexNameFormat = null,
             NullTenantReferenceHandling? nullTenantReferenceHandling = null)
             where TEntity : class
-            where TKey : IEquatable<TKey>
         {
             ArgCheck.NotNull(nameof(builder), builder);
             ArgCheck.NotNull(nameof(staticTenancyModelState), staticTenancyModelState);
@@ -134,7 +135,8 @@ namespace Microsoft.EntityFrameworkCore
             var propertyNameConstant = Expression.Constant(propertyName, typeof(string));  // eg. (string)"TenantId"
             var efPropertyMethod = typeof(EF).GetMethod(nameof(EF.Property), BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(modelState.TenantKeyType);  // eg. EF.Property()
             var efPropertyMethodCall = Expression.Call(efPropertyMethod, entityParameter, propertyNameConstant);  // EF.Property(e, "TenantId")
-            var expression = Expression.Equal(efPropertyMethodCall, tenantId.Body);  // EF.Property(e, "TenantId") == _tenantId
+            var typedTenantId = Expression.Convert(tenantId.Body, modelState.TenantKeyType);  // (string|long|etc)_tenantId
+            var expression = Expression.Equal(efPropertyMethodCall, typedTenantId);  // EF.Property(e, "TenantId") == (long)_tenantId
             if (nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullDenyAccess)
             {
                 // _tenantId != null && EF.Property(e, "TenantId") == _tenantId
@@ -151,14 +153,14 @@ namespace Microsoft.EntityFrameworkCore
 
         /// <summary>
         /// Ensures all changes on tenanted entities that are about to be saved to the underlying datastore only reference the currently scoped tenant.
+        /// If a tenanted entity has their tenant ID set to that of the 'unset tenant ID' value it will then be set to the ID of the currently scoped tenant.
         /// </summary>
         /// <typeparam name="TKey">Type that represents the tenant key.</typeparam>
         /// <param name="context">Context that has multi-tenancy configured and is calling SaveChanges() or SaveChangesAsync().</param>
         /// <param name="tenantId">ID of the currently scoped tenant.</param>
         /// <param name="staticTenancyModelState">The same state object that was passed out of <see cref="ModelBuilder"/>.HasTenancy().</param>
         /// <param name="logger">For logging tenancy access related traces.</param>
-        public static void EnsureTenancy<TKey>(this DbContext context, TKey tenantId, object staticTenancyModelState, ILogger logger = null)
-          where TKey : IEquatable<TKey>
+        public static void EnsureTenancy(this DbContext context, object tenantId, object staticTenancyModelState, ILogger logger = null)
         {
             ArgCheck.NotNull(nameof(context), context);
             ArgCheck.NotNull(nameof(staticTenancyModelState), staticTenancyModelState);
@@ -189,7 +191,7 @@ namespace Microsoft.EntityFrameworkCore
                     continue;
                 }
 
-                if (tenantId == null)
+                if (Equals(tenantId, modelState.UnsetTenantKey))
                 {
                     if (hasTenancyOptions.NullTenantReferenceHandling == NullTenantReferenceHandling.NotNullDenyAccess)
                     {
@@ -197,21 +199,21 @@ namespace Microsoft.EntityFrameworkCore
                     }
                     if (hasTenancyOptions.NullTenantReferenceHandling == NullTenantReferenceHandling.NotNullGlobalAccess)
                     {
-                        var referencedTenantId = (TKey)entry.Property(hasTenancyOptions.ReferenceName).CurrentValue;
-                        if (referencedTenantId == null)
+                        var referencedTenantId = entry.Property(hasTenancyOptions.ReferenceName).CurrentValue;
+                        if (Equals(referencedTenantId, modelState.UnsetTenantKey))
                         {
                             throw new InvalidOperationException(
-                                $"{hasTenancyOptions.ReferenceName} is null on entity of type {entry.Entity.GetType().Name} which does not allow null and the current tenant from the tenancy context is also null - possibly because no scoped tenancy was found.");
+                                $"{hasTenancyOptions.ReferenceName} is required on entity of type {entry.Entity.GetType().Name} and the current tenant from the tenancy context is null - possibly because no scoped tenancy was found.");
                         }
                         continue;
                     }
                 }
 
-                // If tenantId is null here, that's because the entity already has a tenant ID set or
+                // If tenantId is unset here, that's because the entity already has a tenant ID set or
                 // the entity allows a null tenant reference (NullTenantReferenceHandling.NullableEntityAccess).
 
-                var accessedTenantId = (TKey)entry.Property(hasTenancyOptions.ReferenceName).CurrentValue;
-                if (accessedTenantId != null)
+                var accessedTenantId = entry.Property(hasTenancyOptions.ReferenceName).CurrentValue;
+                if (!Equals(accessedTenantId, modelState.UnsetTenantKey))
                 {
                     TenancyAccessHelper.CheckTenancyAccess(tenantId, accessedTenantId, logger);
                 }
@@ -225,6 +227,7 @@ namespace Microsoft.EntityFrameworkCore
         private class TenancyModelState
         {
             public Type TenantKeyType { get; set; }
+            public object UnsetTenantKey { get; set; }
             public TenantReferenceOptions DefaultOptions { get; set; }
             public Dictionary<Type, TenantReferenceOptions> Properties { get; } = new Dictionary<Type, TenantReferenceOptions>();
         }
