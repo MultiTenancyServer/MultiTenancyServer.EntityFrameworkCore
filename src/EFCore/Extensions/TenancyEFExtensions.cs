@@ -135,17 +135,18 @@ namespace Microsoft.EntityFrameworkCore
             var propertyNameConstant = Expression.Constant(propertyName, typeof(string));  // eg. (string)"TenantId"
             var efPropertyMethod = typeof(EF).GetMethod(nameof(EF.Property), BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(modelState.TenantKeyType);  // eg. EF.Property()
             var efPropertyMethodCall = Expression.Call(efPropertyMethod, entityParameter, propertyNameConstant);  // EF.Property(e, "TenantId")
-            var typedTenantId = Expression.Convert(tenantId.Body, modelState.TenantKeyType);  // (string|long|etc)_tenantId
-            var expression = Expression.Equal(efPropertyMethodCall, typedTenantId);  // EF.Property(e, "TenantId") == (long)_tenantId
+            var invokeTenantId = Expression.Invoke(tenantId);  // (() => tenancyContext.Tenant.Id)()
+            var typedTenantId = Expression.Convert(invokeTenantId, modelState.TenantKeyType);  // (string|long|etc)(() => tenancyContext.Tenant.Id)()
+            var expression = Expression.Equal(efPropertyMethodCall, typedTenantId);  // EF.Property(e, "TenantId") == (long)(() => tenancyContext.Tenant.Id)()
             if (nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullDenyAccess)
             {
-                // _tenantId != null && EF.Property(e, "TenantId") == _tenantId
-                expression = Expression.AndAlso(Expression.NotEqual(tenantId.Body, Expression.Constant(null)), expression);
+                // (() => tenancyContext.Tenant.Id)() != null && EF.Property(e, "TenantId") == (long)(() => tenancyContext.Tenant.Id)()
+                expression = Expression.AndAlso(Expression.NotEqual(invokeTenantId, Expression.Constant(null)), expression);
             }
             else if (nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullGlobalAccess)
             {
-                // _tenantId == null || EF.Property(e, "TenantId") == _tenantId
-                expression = Expression.OrElse(Expression.Equal(tenantId.Body, Expression.Constant(null)), expression);
+                // (() => tenancyContext.Tenant.Id)() == null || EF.Property(e, "TenantId") == (long)(() => tenancyContext.Tenant.Id)()
+                expression = Expression.OrElse(Expression.Equal(invokeTenantId, Expression.Constant(null)), expression);
             }
             var lambda = Expression.Lambda(expression, entityParameter);
             builder.HasQueryFilter(lambda);
