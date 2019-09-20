@@ -10,8 +10,8 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="2.2.0" />
-		<PackageReference Include="MultiTenancyServer" Version="1.2.1" />
-		<PackageReference Include="MultiTenancyServer.Stores" Version="1.2.1" />
+		<PackageReference Include="Mms.MultiTenancyServer" Version="1.2.1" />
+		<PackageReference Include="Mms.MultiTenancyServer.Stores" Version="1.2.1" />
 	</ItemGroup>
 
 </Project>
