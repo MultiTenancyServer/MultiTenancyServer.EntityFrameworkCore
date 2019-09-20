@@ -58,7 +58,7 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     # creates an environment if it doesn’t exist
-    environment: 'MultitenancyServer.EntityFrameworkCore.Prerelease'
+    environment: 'Prerelease-MultitenancyServer-EntityFrameworkCore'
     strategy:
       # default deployment strategy
       runOnce:
