@@ -69,3 +69,22 @@ stages:
               packagesToPush: '$(Pipeline.Workspace)/MultitenancyServer.EntityFrameworkCore/pre/*.nupkg'
               nuGetFeedType: 'internal'
               publishVstsFeed: '8ed18c8e-4f19-4994-be32-0a1f0893af0f'
+- stage: Release
+  jobs:
+    # track deployments on the environment
+  - deployment: NugetPush
+    pool:
+      vmImage: 'ubuntu-latest'
+    # creates an environment if it doesn’t exist
+    environment: 'Release-MultitenancyServer'
+    strategy:
+      # default deployment strategy
+      runOnce:
+        deploy:
+          steps:
+          - task: DotNetCoreCLI@2
+            inputs:
+              command: 'push'
+              packagesToPush: '$(Pipeline.Workspace)/MultitenancyServer.EntityFrameworkCore/prod/*.nupkg'
+              nuGetFeedType: 'internal'
+              publishVstsFeed: '8ed18c8e-4f19-4994-be32-0a1f0893af0f'
