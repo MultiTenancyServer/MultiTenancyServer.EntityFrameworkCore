@@ -1,0 +1,49 @@
+# ASP.NET Core
+# Build and test ASP.NET Core projects targeting .NET Core.
+# Add steps that run tests, create a NuGet package, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+trigger:
+ - master
+ - feature/*
+ - fix/*
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  buildConfiguration: 'Release'
+  PrePackageSuffix: 'pre'
+
+steps:
+- script: dotnet build --configuration $(buildConfiguration)
+  displayName: 'dotnet build $(buildConfiguration)'
+- task: DotNetCoreCLI@2
+  displayName: 'Run tests'
+  inputs:
+    command: 'test'
+    projects: 'tests/**/*.csproj'
+    feedsToUse: 'select'
+    versioningScheme: 'off'
+- task: DotNetCoreCLI@2
+  condition: succeeded()
+  displayName: 'Pack pre-package'
+  inputs:
+    command: custom
+    projects: '**/*.csproj'
+    custom: 'pack'
+    arguments: '--configuration $(buildConfiguration) --output $(build.artifactStagingDirectory)/pre --version-suffix "$(PrePackageSuffix)-$(Build.BuildNumber)"'
+- task: DotNetCoreCLI@2
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+  displayName: 'Pack prod package'
+  inputs:
+    command: 'custom'
+    custom: 'pack'
+    packagesToPack: '**/*.csproj'
+    arguments: '--configuration $(buildConfiguration) --output $(build.artifactStagingDirectory)/prod'
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish artifacts'
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'MultitenancyServer.EntityFrameworkCore'
+    publishLocation: 'Container'
