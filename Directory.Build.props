@@ -7,10 +7,10 @@
         <Copyright>Copyright © Kris Penner. All rights reserved.</Copyright>
         <DefaultLanguage>en-US</DefaultLanguage>
         <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
-        <PackageLicenseUrl>https://raw.githubusercontent.com/MultiTenancyServer/MultiTenancyServer.EntityFrameworkCore/master/LICENSE</PackageLicenseUrl>
-        <PackageProjectUrl>https://github.com/MultiTenancyServer</PackageProjectUrl>
+        <PackageLicenseUrl>https://raw.githubusercontent.com/T-Systems-MMS/MultiTenancyServer.EntityFrameworkCore/master/LICENSE</PackageLicenseUrl>
+        <PackageProjectUrl>https://github.com/T-Systems-MMS/MultiTenancyServer</PackageProjectUrl>
         <PackageIconUrl>https://avatars3.githubusercontent.com/u/38764835</PackageIconUrl>
-        <RepositoryUrl>https://github.com/MultiTenancyServer/MultiTenancyServer.EntityFrameworkCore</RepositoryUrl>
+        <RepositoryUrl>https://github.com/T-Systems-MMS/MultiTenancyServer.EntityFrameworkCore</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <UseFullSemVerForNuGet>true</UseFullSemVerForNuGet>
         <GenerateDocumentationFile Condition=" '$(Configuration)' == 'Release' ">true</GenerateDocumentationFile>
