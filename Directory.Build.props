@@ -16,7 +16,7 @@
         <GenerateDocumentationFile Condition=" '$(Configuration)' == 'Release' ">true</GenerateDocumentationFile>
         <DebugType>embedded</DebugType>
         <IncludeSymbols>false</IncludeSymbols>
-        <SourceLinkEnabled>true</SourceLinkEnabled>
+        <SourceLinkEnabled>false</SourceLinkEnabled>
         <IsTestProject>$(MSBuildProjectName.Contains('Test'))</IsTestProject>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
