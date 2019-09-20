@@ -7,19 +7,18 @@ trigger:
  - master
  - feature/*
  - fix/*
+
+variables:
+  buildConfiguration: 'Release'
+  PrePackageSuffix: 'pre'
+  NugetArtifactName: 'NugetPackages'
+  TargetFeed: '8ed18c8e-4f19-4994-be32-0a1f0893af0f'
 stages:
 - stage: Build
   jobs:
   - job: Build
     pool:
       vmImage: 'ubuntu-latest'
-
-    variables:
-      buildConfiguration: 'Release'
-      PrePackageSuffix: 'pre'
-      NugetArtifactName: 'NugetPackages'
-      TargetFeed: '8ed18c8e-4f19-4994-be32-0a1f0893af0f'
-
     steps:
     - script: dotnet build --configuration $(buildConfiguration)
       displayName: 'dotnet build $(buildConfiguration)'
