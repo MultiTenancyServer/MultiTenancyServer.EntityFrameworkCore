@@ -20,7 +20,12 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     steps:
-    - script: dotnet build --configuration $(buildConfiguration)
+    - task: DotNetCoreCLI@2
+      inputs:
+        command: 'restore'
+        feedsToUse: 'select'
+        vstsFeed: '$(TargetFeed)'
+    - script: dotnet build --configuration $(buildConfiguration) --no-restore
       displayName: 'dotnet build $(buildConfiguration)'
     - task: DotNetCoreCLI@2
       displayName: 'Run tests'
