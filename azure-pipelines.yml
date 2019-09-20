@@ -17,6 +17,8 @@ stages:
     variables:
       buildConfiguration: 'Release'
       PrePackageSuffix: 'pre'
+      NugetArtifactName: 'NugetPackages'
+      TargetFeed: '8ed18c8e-4f19-4994-be32-0a1f0893af0f'
 
     steps:
     - script: dotnet build --configuration $(buildConfiguration)
@@ -48,7 +50,7 @@ stages:
       displayName: 'Publish artifacts'
       inputs:
         targetPath: '$(build.artifactStagingDirectory)'
-        artifact: 'MultitenancyServer.EntityFrameworkCore'
+        artifact: '$(NugetPackages)'
 
 - stage: Prerelease
   jobs:
@@ -57,7 +59,7 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     # creates an environment if it doesn’t exist
-    environment: 'Prerelease-MultitenancyServer-EntityFrameworkCore'
+    environment: 'Prerelease'
     strategy:
       # default deployment strategy
       runOnce:
@@ -66,9 +68,9 @@ stages:
           - task: DotNetCoreCLI@2
             inputs:
               command: 'push'
-              packagesToPush: '$(Pipeline.Workspace)/MultitenancyServer.EntityFrameworkCore/pre/*.nupkg'
+              packagesToPush: '$(Pipeline.Workspace)/$(NugetPackages)/pre/*.nupkg'
               nuGetFeedType: 'internal'
-              publishVstsFeed: '8ed18c8e-4f19-4994-be32-0a1f0893af0f'
+              publishVstsFeed: '$(TargetFeed)'
 - stage: Release
   jobs:
     # track deployments on the environment
@@ -76,7 +78,7 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     # creates an environment if it doesn’t exist
-    environment: 'Release-MultitenancyServer'
+    environment: 'Release'
     strategy:
       # default deployment strategy
       runOnce:
@@ -85,6 +87,6 @@ stages:
           - task: DotNetCoreCLI@2
             inputs:
               command: 'push'
-              packagesToPush: '$(Pipeline.Workspace)/MultitenancyServer.EntityFrameworkCore/prod/*.nupkg'
+              packagesToPush: '$(Pipeline.Workspace)/$(NugetPackages)/prod/*.nupkg'
               nuGetFeedType: 'internal'
-              publishVstsFeed: '8ed18c8e-4f19-4994-be32-0a1f0893af0f'
+              publishVstsFeed: '$(TargetFeed)'
