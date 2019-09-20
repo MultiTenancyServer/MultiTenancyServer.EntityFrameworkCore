@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<PackageId>Mms.MultiTenancyServer.EntityFrameworkCore</PackageId>
-		<VersionPrefix>1.2.1</VersionPrefix>
+		<VersionPrefix>1.2.2</VersionPrefix>
 		<Description>MultiTenancyServer Entity Framework Core library.</Description>
 		<PackageTags>multitenancy multi-tenancy multitenant multi-tenant tenants tenant company client customer division partition entityframeworkcore entityframework core ef efcore</PackageTags>
 	</PropertyGroup>
