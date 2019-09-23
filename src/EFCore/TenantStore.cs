@@ -23,6 +23,7 @@ namespace MultiTenancyServer.EntityFramework
         /// Constructs a new instance of <see cref="TenantStore{TTenant}"/>.
         /// </summary>
         /// <param name="context">The <see cref="DbContext"/>.</param>
+        /// <param name="logger">The logger.</param>
         /// <param name="describer">The <see cref="TenancyErrorDescriber"/>.</param>
         public TenantStore(TenantDbContext<TTenant> context, ILogger<TenantStore<TTenant>> logger, TenancyErrorDescriber describer = null)
             : base(context, logger, describer) { }
@@ -41,6 +42,7 @@ namespace MultiTenancyServer.EntityFramework
         /// Constructs a new instance of <see cref="TenantStore{TTenant, TContext}"/>.
         /// </summary>
         /// <param name="context">The <see cref="DbContext"/>.</param>
+        /// <param name="logger">The logger.</param>
         /// <param name="describer">The <see cref="TenancyErrorDescriber"/>.</param>
         public TenantStore(TContext context, ILogger<TenantStore<TTenant, TContext>> logger, TenancyErrorDescriber describer = null)
             : base(context, logger, describer) { }
@@ -53,16 +55,16 @@ namespace MultiTenancyServer.EntityFramework
     /// <typeparam name="TContext">The type of the data context class used to access the store.</typeparam>
     /// <typeparam name="TKey">The type of the primary key for a tenant.</typeparam>
     public class TenantStore<TTenant, TContext, TKey> :
-        TenantStoreBase<TTenant, TKey>,
-        IQueryableTenantStore<TTenant>
+        TenantStoreBase<TTenant, TKey>
         where TTenant : TenancyTenant<TKey>
         where TContext : DbContext, ITenantDbContext<TTenant, TKey>
         where TKey : IEquatable<TKey>
     {
         /// <summary>
-        /// Constructs a new instance of <see cref="TenantStore{TTenant, TRole, TContext, TKey}"/>.
+        /// Constructs a new instance of <see cref="TenantStore{TTenant}"/>.
         /// </summary>
         /// <param name="context">The <see cref="DbContext"/>.</param>
+        /// <param name="logger">The logger.</param>
         /// <param name="describer">The <see cref="TenancyErrorDescriber"/>.</param>
         public TenantStore(TContext context, ILogger<TenantStore<TTenant, TContext, TKey>> logger, TenancyErrorDescriber describer = null)
            : base(describer ?? new TenancyErrorDescriber(), logger)
@@ -209,7 +211,7 @@ namespace MultiTenancyServer.EntityFramework
         /// <returns>The tenant if it exists.</returns>
         protected override Task<TTenant> FindTenantAsync(TKey tenantId, CancellationToken cancellationToken)
         {
-            return Tenants.SingleOrDefaultAsync(u => u.Id.Equals(tenantId), cancellationToken);
+            return Tenants.SingleOrDefaultAsync(u => u.TenantId.Equals(tenantId), cancellationToken);
         }
     }
 }

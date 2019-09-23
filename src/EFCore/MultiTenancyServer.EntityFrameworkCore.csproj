@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
@@ -10,8 +10,8 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="2.2.0" />
-		<PackageReference Include="Mms.MultiTenancyServer" Version="1.2.1" />
-		<PackageReference Include="Mms.MultiTenancyServer.Stores" Version="1.2.1" />
+		<PackageReference Include="Mms.MultiTenancyServer" Version="1.2.2-pre-20190923.1" />
+		<PackageReference Include="Mms.MultiTenancyServer.Stores" Version="1.2.2-pre-20190923.1" />
 	</ItemGroup>
 
 </Project>
