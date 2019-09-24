@@ -211,7 +211,7 @@ namespace MultiTenancyServer.EntityFramework
         /// <returns>The tenant if it exists.</returns>
         protected override Task<TTenant> FindTenantAsync(TKey tenantId, CancellationToken cancellationToken)
         {
-            return Tenants.SingleOrDefaultAsync(u => u.TenantId.Equals(tenantId), cancellationToken);
+            return Tenants.SingleOrDefaultAsync(u => u.Id.Equals(tenantId), cancellationToken);
         }
     }
 }

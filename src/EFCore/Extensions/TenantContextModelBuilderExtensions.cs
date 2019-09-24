@@ -40,7 +40,7 @@ namespace MultiTenancyServer.EntityFramework
 
             builder.Entity<TTenant>(b =>
             {
-                b.HasKey(t => t.TenantId);
+                b.HasKey(t => t.Id);
                 b.Property(t => t.ConcurrencyStamp).IsConcurrencyToken();
                 b.Property(t => t.CanonicalName).HasMaxLength(256);
                 b.Property(t => t.NormalizedCanonicalName).HasMaxLength(256);
