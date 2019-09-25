@@ -1,0 +1,98 @@
+# ASP.NET Core
+# Build and test ASP.NET Core projects targeting .NET Core.
+# Add steps that run tests, create a NuGet package, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+trigger:
+ - master
+ - feature/*
+ - fix/*
+
+variables:
+  buildConfiguration: 'Release'
+  PrePackageSuffix: 'pre'
+  NugetArtifactName: 'NugetPackages'
+  TargetFeed: '8ed18c8e-4f19-4994-be32-0a1f0893af0f'
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: DotNetCoreCLI@2
+      inputs:
+        command: 'restore'
+        feedsToUse: 'select'
+        vstsFeed: '$(TargetFeed)'
+    - script: dotnet build --configuration $(buildConfiguration) --no-restore
+      displayName: 'dotnet build $(buildConfiguration)'
+    - task: DotNetCoreCLI@2
+      displayName: 'Run tests'
+      inputs:
+        command: 'test'
+        projects: 'tests/**/*.csproj'
+        feedsToUse: 'select'
+        versioningScheme: 'off'
+    - task: DotNetCoreCLI@2
+      condition: succeeded()
+      displayName: 'Pack pre-package'
+      inputs:
+        command: custom
+        projects: '**/*.csproj'
+        custom: 'pack'
+        arguments: '--configuration $(buildConfiguration) --output $(build.artifactStagingDirectory)/pre --version-suffix "$(PrePackageSuffix)-$(Build.BuildNumber)" --no-build --no-restore'
+    - task: DotNetCoreCLI@2
+      condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+      displayName: 'Pack prod package'
+      inputs:
+        command: 'custom'
+        custom: 'pack'
+        packagesToPack: '**/*.csproj'
+        arguments: '--configuration $(buildConfiguration) --output $(build.artifactStagingDirectory)/prod'
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish artifacts'
+      inputs:
+        targetPath: '$(build.artifactStagingDirectory)'
+        artifact: '$(NugetPackages)'
+
+- stage: Prerelease
+  condition: succeeded()
+  jobs:
+    # track deployments on the environment
+  - deployment: NugetPush
+    pool:
+      vmImage: 'ubuntu-latest'
+    # creates an environment if it doesn’t exist
+    environment: 'Prerelease'
+    strategy:
+      # default deployment strategy
+      runOnce:
+        deploy:
+          steps:
+          - task: DotNetCoreCLI@2
+            inputs:
+              command: 'push'
+              packagesToPush: '$(Pipeline.Workspace)/$(NugetPackages)/pre/*.nupkg'
+              nuGetFeedType: 'internal'
+              publishVstsFeed: '$(TargetFeed)'
+- stage: Release
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+  jobs:
+    # track deployments on the environment
+  - deployment: NugetPush
+    pool:
+      vmImage: 'ubuntu-latest'
+    # creates an environment if it doesn’t exist
+    environment: 'Release'
+    strategy:
+      # default deployment strategy
+      runOnce:
+        deploy:
+          steps:
+          - task: DotNetCoreCLI@2
+            inputs:
+              command: 'push'
+              packagesToPush: '$(Pipeline.Workspace)/$(NugetPackages)/prod/*.nupkg'
+              nuGetFeedType: 'internal'
+              publishVstsFeed: '$(TargetFeed)'

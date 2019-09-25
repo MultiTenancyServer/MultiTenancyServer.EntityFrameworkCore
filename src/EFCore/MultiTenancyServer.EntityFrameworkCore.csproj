@@ -1,16 +1,14 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
+﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
-		<Version>1.2.1</Version>
+		<PackageId>Mms.MultiTenancyServer.EntityFrameworkCore</PackageId>
+		<VersionPrefix>1.4.0</VersionPrefix>
 		<Description>MultiTenancyServer Entity Framework Core library.</Description>
 		<PackageTags>multitenancy multi-tenancy multitenant multi-tenant tenants tenant company client customer division partition entityframeworkcore entityframework core ef efcore</PackageTags>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="2.2.0" />
-		<PackageReference Include="MultiTenancyServer" Version="1.2.1" />
-		<PackageReference Include="MultiTenancyServer.Stores" Version="1.2.1" />
+		<PackageReference Include="Mms.MultiTenancyServer.Stores" Version="1.4.0" />
 	</ItemGroup>
-
 </Project>

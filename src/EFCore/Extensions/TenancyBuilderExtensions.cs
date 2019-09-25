@@ -14,7 +14,7 @@ using MultiTenancyServer.Stores;
 namespace Microsoft.Extensions.DependencyInjection
 {
     /// <summary>
-    /// Contains extension methods to <see cref="ITenancyBuilder{TTenant, TKey}"/> for adding entity framework stores.
+    /// Contains extension methods to <see cref="TenancyBuilder{TTenant, TKey}"/> for adding entity framework stores.
     /// </summary>
     public static class TenancyBuilderExtensions
     {
@@ -22,8 +22,11 @@ namespace Microsoft.Extensions.DependencyInjection
         /// Adds an Entity Framework implementation of multi-tenancy information stores.
         /// </summary>
         /// <typeparam name="TContext">The Entity Framework database context to use.</typeparam>
-        /// <param name="builder">The <see cref="TenancyBuilder"/> instance this method extends.</param>
-        /// <returns>The <see cref="TenancyBuilder"/> instance this method extends.</returns>
+        /// <typeparam name="TTenant">The type encapsulating a tenant.</typeparam>
+        /// <typeparam name="TKey">Key of TenantId</typeparam>
+        /// <param name="builder">The <see cref="TenancyBuilder{TTenant, TKey}"/> instance this method extends.</param>
+        /// <param name="contextFactory">The context factory.</param>
+        /// <returns>The <see cref="TenancyBuilder{TTenant, TKey}"/> instance this method extends.</returns>
         public static TenancyBuilder<TTenant, TKey> AddEntityFrameworkStore<TContext, TTenant, TKey>(
             this TenancyBuilder<TTenant, TKey> builder, 
             Func<IServiceProvider, TContext> contextFactory = null)
@@ -33,7 +36,7 @@ namespace Microsoft.Extensions.DependencyInjection
         {
             if (contextFactory != null)
             {
-                builder.Services.TryAddScoped<ITenantStore<TTenant>>(sp =>
+                builder.Services.TryAddScoped<ITenantStore<TTenant, TKey>>(sp =>
                     new TenantStore<TTenant, TContext, TKey>(
                         contextFactory(sp),
                         sp.GetRequiredService<ILogger<TenantStore<TTenant, TContext, TKey>>>(),
@@ -41,7 +44,7 @@ namespace Microsoft.Extensions.DependencyInjection
             }
             else
             {
-                builder.Services.TryAddScoped<ITenantStore<TTenant>, TenantStore<TTenant, TContext, TKey>>();
+                builder.Services.TryAddScoped<ITenantStore<TTenant, TKey>, TenantStore<TTenant, TContext, TKey>>();
             }
             return builder;
         }
