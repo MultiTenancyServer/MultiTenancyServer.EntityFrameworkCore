@@ -57,6 +57,7 @@ stages:
         artifact: '$(NugetPackages)'
 
 - stage: Prerelease
+  condition: succeeded()
   jobs:
     # track deployments on the environment
   - deployment: NugetPush
@@ -76,6 +77,7 @@ stages:
               nuGetFeedType: 'internal'
               publishVstsFeed: '$(TargetFeed)'
 - stage: Release
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
   jobs:
     # track deployments on the environment
   - deployment: NugetPush
