@@ -97,7 +97,7 @@ namespace MultiTenancyServer.EntityFramework
         /// <param name="tenant">The tenant to create.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> used to propagate notifications that the operation should be canceled.</param>
         /// <returns>The <see cref="Task"/> that represents the asynchronous operation, containing the <see cref="TenancyResult"/> of the creation operation.</returns>
-        public async override Task<TenancyResult> CreateAsync(TTenant tenant, CancellationToken cancellationToken = default)
+        public override async Task<TenancyResult> CreateAsync(TTenant tenant, CancellationToken cancellationToken = default)
         {
             ArgCheck.NotNull(nameof(tenant), tenant);
             cancellationToken.ThrowIfCancellationRequested();
@@ -114,7 +114,7 @@ namespace MultiTenancyServer.EntityFramework
         /// <param name="tenant">The tenant to update.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> used to propagate notifications that the operation should be canceled.</param>
         /// <returns>The <see cref="Task"/> that represents the asynchronous operation, containing the <see cref="TenancyResult"/> of the update operation.</returns>
-        public async override Task<TenancyResult> UpdateAsync(TTenant tenant, CancellationToken cancellationToken = default)
+        public override async Task<TenancyResult> UpdateAsync(TTenant tenant, CancellationToken cancellationToken = default)
         {
             ArgCheck.NotNull(nameof(tenant), tenant);
             cancellationToken.ThrowIfCancellationRequested();
@@ -123,6 +123,7 @@ namespace MultiTenancyServer.EntityFramework
             Context.Attach(tenant);
             tenant.ConcurrencyStamp = Guid.NewGuid().ToString();
             Context.Update(tenant);
+
             try
             {
                 await SaveChanges(cancellationToken);
@@ -131,6 +132,7 @@ namespace MultiTenancyServer.EntityFramework
             {
                 return TenancyResult.Failed(ErrorDescriber.ConcurrencyFailure());
             }
+
             return TenancyResult.Success;
         }
 
@@ -140,13 +142,14 @@ namespace MultiTenancyServer.EntityFramework
         /// <param name="tenant">The tenant to delete.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> used to propagate notifications that the operation should be canceled.</param>
         /// <returns>The <see cref="Task"/> that represents the asynchronous operation, containing the <see cref="TenancyResult"/> of the update operation.</returns>
-        public async override Task<TenancyResult> DeleteAsync(TTenant tenant, CancellationToken cancellationToken = default)
+        public override async Task<TenancyResult> DeleteAsync(TTenant tenant, CancellationToken cancellationToken = default)
         {
             ArgCheck.NotNull(nameof(tenant), tenant);
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfDisposed();
 
             Context.Remove(tenant);
+
             try
             {
                 await SaveChanges(cancellationToken);
@@ -155,6 +158,7 @@ namespace MultiTenancyServer.EntityFramework
             {
                 return TenancyResult.Failed(ErrorDescriber.ConcurrencyFailure());
             }
+
             return TenancyResult.Success;
         }
 
@@ -164,9 +168,9 @@ namespace MultiTenancyServer.EntityFramework
         /// <param name="tenantId">The tenant ID to search for.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> used to propagate notifications that the operation should be canceled.</param>
         /// <returns>
-        /// The <see cref="Task"/> that represents the asynchronous operation, containing the tenant matching the specified <paramref name="tenantId"/> if it exists.
+        /// The <see cref="ValueTask"/> that represents the asynchronous operation, containing the tenant matching the specified <paramref name="tenantId"/> if it exists.
         /// </returns>
-        public override Task<TTenant> FindByIdAsync(string tenantId, CancellationToken cancellationToken = default)
+        public override ValueTask<TTenant> FindByIdAsync(string tenantId, CancellationToken cancellationToken = default)
         {
             ArgCheck.NotNull(nameof(tenantId), tenantId);
             cancellationToken.ThrowIfCancellationRequested();
@@ -182,15 +186,15 @@ namespace MultiTenancyServer.EntityFramework
         /// <param name="normalizedCanonicalName">The normalized canonical name to search for.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> used to propagate notifications that the operation should be canceled.</param>
         /// <returns>
-        /// The <see cref="Task"/> that represents the asynchronous operation, containing the tenant matching the specified <paramref name="normalizedCanonicalName"/> if it exists.
+        /// The <see cref="ValueTask"/> that represents the asynchronous operation, containing the tenant matching the specified <paramref name="normalizedCanonicalName"/> if it exists.
         /// </returns>
-        public override Task<TTenant> FindByCanonicalNameAsync(string normalizedCanonicalName, CancellationToken cancellationToken = default)
+        public override ValueTask<TTenant> FindByCanonicalNameAsync(string normalizedCanonicalName, CancellationToken cancellationToken = default)
         {
             ArgCheck.NotNull(nameof(normalizedCanonicalName), normalizedCanonicalName);
             cancellationToken.ThrowIfCancellationRequested();
             ThrowIfDisposed();
 
-            return Tenants.FirstOrDefaultAsync(u => u.NormalizedCanonicalName == normalizedCanonicalName, cancellationToken);
+            return new ValueTask<TTenant>(Tenants.FirstOrDefaultAsync(u => u.NormalizedCanonicalName == normalizedCanonicalName, cancellationToken));
         }
 
         /// <summary>
@@ -207,9 +211,9 @@ namespace MultiTenancyServer.EntityFramework
         /// <param name="tenantId">The tenant's id.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> used to propagate notifications that the operation should be canceled.</param>
         /// <returns>The tenant if it exists.</returns>
-        protected override Task<TTenant> FindTenantAsync(TKey tenantId, CancellationToken cancellationToken)
+        protected override ValueTask<TTenant> FindTenantAsync(TKey tenantId, CancellationToken cancellationToken)
         {
-            return Tenants.SingleOrDefaultAsync(u => u.Id.Equals(tenantId), cancellationToken);
+            return new ValueTask<TTenant>(Tenants.SingleOrDefaultAsync(u => u.Id.Equals(tenantId), cancellationToken));
         }
     }
 }

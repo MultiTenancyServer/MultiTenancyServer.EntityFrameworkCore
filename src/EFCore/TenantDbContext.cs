@@ -34,7 +34,7 @@ namespace MultiTenancyServer.EntityFramework
         where TTenant : TenancyTenant<TKey>
         where TKey : IEquatable<TKey>
     {
-        private TenantStoreOptions _storeOptions;
+        private readonly TenantStoreOptions _storeOptions;
 
         /// <summary>
         /// Initializes a new instance of the db context.

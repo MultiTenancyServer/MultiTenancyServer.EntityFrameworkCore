@@ -45,10 +45,15 @@ namespace MultiTenancyServer.EntityFramework
                 b.Property(t => t.CanonicalName).HasMaxLength(256);
                 b.Property(t => t.NormalizedCanonicalName).HasMaxLength(256);
                 b.HasIndex(t => t.NormalizedCanonicalName).HasName($"{nameof(TenancyTenant.CanonicalName)}Index").IsUnique();
+
                 if (storeOptions?.Schema != null)
+                {
                     b.ToTable(storeOptions?.Name ?? "Tenants", storeOptions.Schema);
+                }
                 else
+                {
                     b.ToTable(storeOptions?.Name ?? "Tenants");
+                }
             });
         }
     }

@@ -43,22 +43,27 @@ namespace Microsoft.Extensions.DependencyInjection
             {
                 builder.Services.TryAddScoped<ITenantStore<TTenant>, TenantStore<TTenant, TContext, TKey>>();
             }
+
             return builder;
         }
 
         private static TypeInfo FindGenericBaseType(Type currentType, Type genericBaseType)
         {
             var type = currentType;
+
             while (type != null)
             {
                 var typeInfo = type.GetTypeInfo();
                 var genericType = type.IsGenericType ? type.GetGenericTypeDefinition() : null;
+
                 if (genericType != null && genericType == genericBaseType)
                 {
                     return typeInfo;
                 }
+
                 type = type.BaseType;
             }
+
             return null;
         }
     }

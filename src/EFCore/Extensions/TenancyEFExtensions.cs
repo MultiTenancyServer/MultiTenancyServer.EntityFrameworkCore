@@ -66,6 +66,7 @@ namespace Microsoft.EntityFrameworkCore
             ArgCheck.NotNull(nameof(builder), builder);
             ArgCheck.NotNull(nameof(staticTenancyModelState), staticTenancyModelState);
             ArgCheck.NotNull(nameof(propertyExpression), propertyExpression);
+
             var propertyName = builder.Property(propertyExpression).Metadata.Name;
             builder.HasTenancy(tenantId, staticTenancyModelState, propertyName, hasIndex, indexNameFormat, nullTenantReferenceHandling);
         }
@@ -98,10 +99,10 @@ namespace Microsoft.EntityFrameworkCore
               throw new InvalidOperationException($"{nameof(HasTenancy)} must be called on the {nameof(ModelBuilder)} first.");
 
             // get overrides or defaults
-            propertyName = propertyName ?? modelState.DefaultOptions.ReferenceName ?? throw new ArgumentNullException(nameof(propertyName));
-            hasIndex = hasIndex ?? modelState.DefaultOptions.IndexReferences;
-            indexNameFormat = indexNameFormat ?? modelState.DefaultOptions.IndexNameFormat;
-            nullTenantReferenceHandling = nullTenantReferenceHandling ?? modelState.DefaultOptions.NullTenantReferenceHandling;
+            propertyName ??= modelState.DefaultOptions.ReferenceName ?? throw new ArgumentNullException(nameof(propertyName));
+            hasIndex ??= modelState.DefaultOptions.IndexReferences;
+            indexNameFormat ??= modelState.DefaultOptions.IndexNameFormat;
+            nullTenantReferenceHandling ??= modelState.DefaultOptions.NullTenantReferenceHandling;
             modelState.Properties[typeof(TEntity)] = new TenantReferenceOptions()
             {
                 ReferenceName = propertyName,
@@ -132,12 +133,13 @@ namespace Microsoft.EntityFrameworkCore
 
             // add tenant query filter
             var entityParameter = Expression.Parameter(typeof(TEntity), "e");  // eg. User e
-            var propertyNameConstant = Expression.Constant(propertyName, typeof(string));  // eg. (string)"TenantId"
-            var efPropertyMethod = typeof(EF).GetMethod(nameof(EF.Property), BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(modelState.TenantKeyType);  // eg. EF.Property()
-            var efPropertyMethodCall = Expression.Call(efPropertyMethod, entityParameter, propertyNameConstant);  // EF.Property(e, "TenantId")
+            var propertyNameConstant = Expression.Constant(propertyName, typeof(string));  // eg. "TenantId"
+            var efPropertyMethod = typeof(EF).GetMethod(nameof(EF.Property), BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(modelState.TenantKeyType);  // eg. EF.Property<string>()
+            var efPropertyMethodCall = Expression.Call(efPropertyMethod, entityParameter, propertyNameConstant);  // EF.Property<string>(e, "TenantId")
             var invokeTenantId = Expression.Invoke(tenantId);  // (() => tenancyContext.Tenant.Id)()
             var typedTenantId = Expression.Convert(invokeTenantId, modelState.TenantKeyType);  // (string|long|etc)(() => tenancyContext.Tenant.Id)()
             var expression = Expression.Equal(efPropertyMethodCall, typedTenantId);  // EF.Property(e, "TenantId") == (long)(() => tenancyContext.Tenant.Id)()
+
             if (nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullDenyAccess)
             {
                 // (() => tenancyContext.Tenant.Id)() != null && EF.Property(e, "TenantId") == (long)(() => tenancyContext.Tenant.Id)()
@@ -148,6 +150,7 @@ namespace Microsoft.EntityFrameworkCore
                 // (() => tenancyContext.Tenant.Id)() == null || EF.Property(e, "TenantId") == (long)(() => tenancyContext.Tenant.Id)()
                 expression = Expression.OrElse(Expression.Equal(invokeTenantId, Expression.Constant(null)), expression);
             }
+
             var lambda = Expression.Lambda(expression, entityParameter);
             builder.HasQueryFilter(lambda);
         }
@@ -171,6 +174,7 @@ namespace Microsoft.EntityFrameworkCore
             var tenancyProperties = modelState.Properties;
 
             var hasTenancyLookup = new Dictionary<Type, TenantReferenceOptions>();
+
             foreach (var entry in context.ChangeTracker.Entries())
             {
                 if (entry.State != EntityState.Added &&
@@ -214,6 +218,7 @@ namespace Microsoft.EntityFrameworkCore
                 // the entity allows a null tenant reference (NullTenantReferenceHandling.NullableEntityAccess).
 
                 var accessedTenantId = entry.Property(hasTenancyOptions.ReferenceName).CurrentValue;
+
                 if (!Equals(accessedTenantId, modelState.UnsetTenantKey))
                 {
                     TenancyAccessHelper.CheckTenancyAccess(tenantId, accessedTenantId, logger);
