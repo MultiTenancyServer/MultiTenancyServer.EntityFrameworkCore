@@ -53,11 +53,11 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="hasIndex">True if the tenant ID reference column should be indexed in the database, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
         /// <param name="indexNameFormat">Format or name of the index, only applicable if <paramref name="hasIndex"/> is true, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
         /// <param name="nullTenantReferenceHandling">Determines if a null tenant reference is allowed and how querying for null tenant references is handled.</param>
-        public static void HasTenancy<TEntity>(
+        public static void HasTenancy<TEntity, TKey>(
             this EntityTypeBuilder<TEntity> builder,
-            Expression<Func<object>> tenantId,
+            Expression<Func<TKey>> tenantId,
             object staticTenancyModelState,
-            Expression<Func<TEntity, object>> propertyExpression,
+            Expression<Func<TEntity, TKey>> propertyExpression,
             bool? hasIndex = null,
             string indexNameFormat = null,
             NullTenantReferenceHandling? nullTenantReferenceHandling = null)
@@ -83,9 +83,9 @@ namespace Microsoft.EntityFrameworkCore
         /// <param name="hasIndex">True if the tenant ID reference column should be indexed in the database, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
         /// <param name="indexNameFormat">Format or name of the index, only applicable if <paramref name="hasIndex"/> is true, this will override any previously configured value in <see cref="TenantReferenceOptions"/>.</param>
         /// <param name="nullTenantReferenceHandling">Determines if a null tenant reference is allowed and how querying for null tenant references is handled.</param>
-        public static void HasTenancy<TEntity>(
+        public static void HasTenancy<TEntity, TKey>(
             this EntityTypeBuilder<TEntity> builder,
-            Expression<Func<object>> tenantId,
+            Expression<Func<TKey>> tenantId,
             object staticTenancyModelState,
             string propertyName = null,
             bool? hasIndex = null,
@@ -95,8 +95,14 @@ namespace Microsoft.EntityFrameworkCore
         {
             ArgCheck.NotNull(nameof(builder), builder);
             ArgCheck.NotNull(nameof(staticTenancyModelState), staticTenancyModelState);
+
             var modelState = (staticTenancyModelState as TenancyModelState) ??
               throw new InvalidOperationException($"{nameof(HasTenancy)} must be called on the {nameof(ModelBuilder)} first.");
+
+            if (typeof(TKey) != modelState.TenantKeyType)
+            {
+                throw new InvalidOperationException($"Tenant key type mismatch {typeof(TKey).FullName} and {modelState.TenantKeyType.FullName}.");
+            }
 
             // get overrides or defaults
             propertyName ??= modelState.DefaultOptions.ReferenceName ?? throw new ArgumentNullException(nameof(propertyName));
@@ -132,26 +138,37 @@ namespace Microsoft.EntityFrameworkCore
             }
 
             // add tenant query filter
-            var entityParameter = Expression.Parameter(typeof(TEntity), "e");  // eg. User e
-            var propertyNameConstant = Expression.Constant(propertyName, typeof(string));  // eg. "TenantId"
-            var efPropertyMethod = typeof(EF).GetMethod(nameof(EF.Property), BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(modelState.TenantKeyType);  // eg. EF.Property<string>()
-            var efPropertyMethodCall = Expression.Call(efPropertyMethod, entityParameter, propertyNameConstant);  // EF.Property<string>(e, "TenantId")
-            var invokeTenantId = Expression.Invoke(tenantId);  // (() => tenancyContext.Tenant.Id)()
-            var typedTenantId = Expression.Convert(invokeTenantId, modelState.TenantKeyType);  // (string|long|etc)(() => tenancyContext.Tenant.Id)()
-            var expression = Expression.Equal(efPropertyMethodCall, typedTenantId);  // EF.Property(e, "TenantId") == (long)(() => tenancyContext.Tenant.Id)()
 
-            if (nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullDenyAccess)
+            // Entity e
+            var entityParameter = Expression.Parameter(typeof(TEntity), "e");
+            // "TenantId"
+            var propertyNameConstant = Expression.Constant(propertyName, typeof(string));
+            // EF.Property<long>
+            var efPropertyMethod = ((MethodCallExpression)((Expression<Func<object, string, TKey>>)((e, p) => EF.Property<TKey>(e, p))).Body).Method;
+            // EF.Property<long>(e, "TenantId")
+            var efPropertyCall = Expression.Call(efPropertyMethod, entityParameter, propertyNameConstant);
+            // _tenancyContext.Tenant.Id == EF.Property<long>(e, "TenantId")
+            var tenantCondition = Expression.Equal(tenantId.Body, efPropertyCall);
+
+            if (nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullDenyAccess ||
+                nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullGlobalAccess)
             {
-                // (() => tenancyContext.Tenant.Id)() != null && EF.Property(e, "TenantId") == (long)(() => tenancyContext.Tenant.Id)()
-                expression = Expression.AndAlso(Expression.NotEqual(invokeTenantId, Expression.Constant(null)), expression);
-            }
-            else if (nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullGlobalAccess)
-            {
-                // (() => tenancyContext.Tenant.Id)() == null || EF.Property(e, "TenantId") == (long)(() => tenancyContext.Tenant.Id)()
-                expression = Expression.OrElse(Expression.Equal(invokeTenantId, Expression.Constant(null)), expression);
+                var nullableTenantKeyType = modelState.TenantKeyType.IsValueType ? typeof(Nullable<>).MakeGenericType(modelState.TenantKeyType) : modelState.TenantKeyType;
+                var nullableTenantKey = modelState.TenantKeyType.IsValueType ? Expression.Convert(tenantId.Body, nullableTenantKeyType) : tenantId.Body;
+                var nullTenantKey = Expression.Constant(null, nullableTenantKeyType);
+                if (nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullDenyAccess)
+                {
+                    // (long?)_tenancyContext.Tenant.Id != (long?)null && _tenancyContext.Tenant.Id == EF.Property<long>(e, "TenantId")
+                    tenantCondition = Expression.AndAlso(Expression.NotEqual(nullableTenantKey, nullTenantKey), tenantCondition);
+                }
+                else if (nullTenantReferenceHandling == NullTenantReferenceHandling.NotNullGlobalAccess)
+                {
+                    // (long?)_tenancyContext.Tenant.Id == (long?)null || _tenancyContext.Tenant.Id == EF.Property<long>(e, "TenantId")
+                    tenantCondition = Expression.OrElse(Expression.Equal(nullableTenantKey, nullTenantKey), tenantCondition);
+                }
             }
 
-            var lambda = Expression.Lambda(expression, entityParameter);
+            var lambda = Expression.Lambda(tenantCondition, entityParameter);
             builder.HasQueryFilter(lambda);
         }
 
